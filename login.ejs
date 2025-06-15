@@ -1,0 +1,142 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Group Member Remover - Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #25D366;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #25D366;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: #25D366;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .btn:hover {
+            background: #1ea952;
+        }
+        
+        .error {
+            background: #ff4757;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .info {
+            background: #f1f2f6;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #666;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">📱 WhatsApp Group Tool</div>
+        <div class="subtitle">Member Remover Tool</div>
+        
+        <% if (error) { %>
+            <div class="error">
+                <%= error %>
+                <% if (typeof redirectToTelegram !== 'undefined' && redirectToTelegram) { %>
+                    <br><br>
+                    <a href="https://t.me/Reemasilhen" target="_blank" style="color: white; text-decoration: underline;">
+                        Click here to contact @Reemasilhen on Telegram
+                    </a>
+                <% } %>
+            </div>
+        <% } %>
+        
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label for="userId">Admin ID:</label>
+                <input type="text" id="userId" name="userId" placeholder="Enter 10-digit numeric ID" maxlength="10" required>
+            </div>
+            
+            <button type="submit" class="btn">Login</button>
+        </form>
+        
+        <div class="info">
+            <strong>⚠️ Admin Access Only</strong><br>
+            This tool is restricted to authorized administrators. Your ID must be pre-approved to access this system.
+        </div>
+    </div>
+</body>
+</html>
