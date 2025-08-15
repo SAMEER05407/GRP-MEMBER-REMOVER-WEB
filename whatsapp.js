@@ -443,124 +443,79 @@ class WhatsAppHandler {
       
       // Get current user's JID and normalize it
       const currentUserJid = this.sock.user.id;
-      const normalizedCurrentJid = currentUserJid.replace(/:\d+/, '').replace('@s.whatsapp.net', '');
       
-      // Check if current user is admin
-      const currentUserParticipant = groupMetadata.participants.find(p => {
-        const normalizedPId = p.id.replace(/:\d+/, '').replace('@s.whatsapp.net', '');
-        return normalizedPId === normalizedCurrentJid;
-      });
+      // Enhanced normalization to handle different JID formats (@s.whatsapp.net, @lid, @g.us)
+      const normalizeJid = (jid) => {
+        // Remove port numbers, domain suffixes and extract the core identifier
+        return jid.replace(/:\d+/, '').split('@')[0];
+      };
       
-      if (!currentUserParticipant) {
-        throw new Error('You are not a member of this group. Please ensure you joined the group successfully.');
-      }
+      const normalizedCurrentJid = normalizeJid(currentUserJid);
       
-      if (currentUserParticipant.admin !== 'admin' && currentUserParticipant.admin !== 'superadmin') {
-        throw new Error('You must be an admin of this group to remove members. Current role: ' + (currentUserParticipant.admin || 'member'));
-      }
+      // Extract phone number from current user JID
+      const extractPhoneNumber = (jid) => {
+        const match = jid.match(/(\d{10,15})/);
+        return match ? match[1] : null;
+      };
       
-      console.log(`Current user is a group ${currentUserParticipant.admin}`);
+      const currentUserPhone = extractPhoneNumber(currentUserJid);
+      console.log(`Current user phone: ${currentUserPhone}`);
       
-      // Additional validation to ensure we can perform admin actions
-      try {
-        // Test admin permissions by getting group invite code
-        await this.sock.groupInviteCode(groupId);
-      } catch (permError) {
-        throw new Error('Unable to perform admin actions in this group. Please ensure you have admin permissions.');
-      }
-      
-      // Get all participants except admins and current user with proper JID validation
-      const membersToRemove = groupMetadata.participants.filter(participant => {
-        const normalizedPId = participant.id.replace(/:\d+/, '').replace('@s.whatsapp.net', '');
-        const isCurrentUser = normalizedPId === normalizedCurrentJid;
-        const isAdmin = participant.admin === 'admin' || participant.admin === 'superadmin';
-        const hasValidJid = participant.id.includes('@s.whatsapp.net');
+      // Check if current user is admin with enhanced matching for different JID formats
+      let currentUserParticipant = groupMetadata.participants.find(p => {
+        const normalizedPId = normalizeJid(p.id);
         
-        return !isCurrentUser && !isAdmin && hasValidJid;
-      });
-      
-      console.log(`Total participants: ${groupMetadata.participants.length}`);
-      console.log(`Admins: ${groupMetadata.participants.filter(p => p.admin === 'admin' || p.admin === 'superadmin').length}`);
-      console.log(`Members to remove: ${membersToRemove.length}`);
-      
-      if (membersToRemove.length === 0) {
-        return {
-          success: true,
-          message: 'No members to remove (only admins remain)',
-          removed: 0,
-          total: groupMetadata.participants.length,
-          adminCount: groupMetadata.participants.filter(p => p.admin === 'admin' || p.admin === 'superadmin').length
-        };
-      }
-      
-      console.log(`Starting removal of ${membersToRemove.length} members from group "${groupMetadata.subject}"`);
-      
-      // Remove members one by one to avoid conflicts
-      let removedCount = 0;
-      let errors = [];
-      let skippedCount = 0;
-      
-      for (let i = 0; i < membersToRemove.length; i++) {
-        const participant = membersToRemove[i];
+        // Direct exact match
+        if (p.id === currentUserJid) return true;
         
-        try {
-          console.log(`Attempting to remove member ${i + 1}/${membersToRemove.length}: ${participant.id}`);
+        // Normalized match (core identifier comparison)
+        if (normalizedPId === normalizedCurrentJid) return true;
+        
+        // Phone number based matching
+        const participantPhone = extractPhoneNumber(p.id);
+        
+        if (currentUserPhone && participantPhone && currentUserPhone === participantPhone) return true;
+        
+        // Alternative matching for @lid format - check if participant ID contains current user's phone
+        if (currentUserPhone && p.id.includes(currentUserPhone)) return true;
+        
+        // Reverse check - if current JID contains participant's phone number
+        if (participantPhone && currentUserJid.includes(participantPhone)) return true;
+        
+        // Enhanced matching for Indian phone numbers and different formats
+        if (p.id.includes('@lid')) {
+          // Create comprehensive phone variations for Indian numbers
+          const phoneVariations = [];
           
-          // Remove one member at a time
-          await this.sock.groupParticipantsUpdate(groupId, [participant.id], 'remove');
-          removedCount++;
+          // Add current user phone as-is
+          if (currentUserPhone) {
+            phoneVariations.push(currentUserPhone);
+          }
           
-          console.log(`✅ Successfully removed member ${i + 1}/${membersToRemove.length}: ${participant.id}`);
+          // Add session userId (admin phone number)
+          if (this.userId) {
+            phoneVariations.push(this.userId);
+            phoneVariations.push('91' + this.userId); // India country code
+            phoneVariations.push('1' + this.userId);  // Alternative format
+          }
           
-          // Emit progress update
-          this.io.to(`user-${this.userId}`).emit('removal-progress', {
-            removed: removedCount,
-            total: membersToRemove.length,
-            current: participant.id,
-            errors: errors.length
-          });
+          // Add variations of current user phone
+          if (currentUserPhone) {
+            phoneVariations.push(currentUserPhone.substring(1)); // Remove first digit
+            phoneVariations.push(currentUserPhone.substring(2)); // Remove first two digits
+            phoneVariations.push('91' + currentUserPhone); // Add India country code
+            phoneVariations.push('1' + currentUserPhone);  // Add US country code
+          }
           
-        } catch (error) {
-          console.error(`❌ Error removing member ${participant.id}:`, error);
-          
-          if (error.data === 403) {
-            errors.push(`${participant.id}: Access denied (member might be admin or protected)`);
-            skippedCount++;
-          } else if (error.data === 409) {
-            errors.push(`${participant.id}: Conflict (member might have already left)`);
-            skippedCount++;
-          } else if (error.data === 404) {
-            errors.push(`${participant.id}: Not found (member might have already left)`);
-            skippedCount++;
-          } else {
-            errors.push(`${participant.id}: ${error.message || 'Unknown error'}`);
+          // Try all variations
+          for (const variation of phoneVariations) {
+            if (variation && p.id.includes(variation)) {
+              console.log(`Phone match found with variation: ${variation} in ${p.id}`);
+              return true;
+            }
           }
         }
         
-        // Wait between each removal to avoid rate limiting (1 second per member)
-        if (i < membersToRemove.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
+        return false;
+      });
       
-      const successMessage = `Successfully processed member removal from group "${groupMetadata.subject}". Removed: ${removedCount}/${membersToRemove.length} members${skippedCount > 0 ? ` (${skippedCount} skipped due to errors)` : ''}.`;
-      
-      return {
-        success: true,
-        message: successMessage,
-        removed: removedCount,
-        total: membersToRemove.length,
-        skipped: skippedCount,
-        totalParticipants: groupMetadata.participants.length,
-        errors: errors.length > 0 ? errors.slice(0, 10) : null, // Limit error list to prevent UI overflow
-        hasMoreErrors: errors.length > 10
-      };
-      
-    } catch (error) {
-      console.error('Error removing members:', error);
-      throw new Error(`Failed to remove members: ${error.message}`);
-    }
-  }
-}
-
-module.exports = WhatsAppHandler;
